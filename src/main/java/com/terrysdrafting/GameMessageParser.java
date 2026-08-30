@@ -9,9 +9,6 @@ final class GameMessageParser
 	private static final Pattern COLLECTION_LOG = Pattern.compile(
 		"(?i)new item added to your collection log:\\s*(.+?)\\s*[.!]?$"
 	);
-	private static final Pattern COMBAT_ACHIEVEMENT = Pattern.compile(
-		"(?i)(?:combat (?:task|achievement)[^:]*|congratulations[^:]*combat task[^:]*):\\s*(.+?)\\s*[.!]?$"
-	);
 	private static final Pattern CLUE = Pattern.compile(
 		"(?i)you have completed \\d+ (beginner|easy|medium|hard|elite|master) treasure trails?"
 	);
@@ -36,11 +33,6 @@ final class GameMessageParser
 		if (matcher.find())
 		{
 			return new Parsed(Type.COLLECTION_LOG, matcher.group(1).trim(), 1);
-		}
-		matcher = COMBAT_ACHIEVEMENT.matcher(message);
-		if (matcher.find())
-		{
-			return new Parsed(Type.COMBAT_ACHIEVEMENT, matcher.group(1).trim(), 1);
 		}
 		matcher = CLUE.matcher(message);
 		if (matcher.find())
@@ -100,7 +92,6 @@ final class GameMessageParser
 	enum Type
 	{
 		COLLECTION_LOG,
-		COMBAT_ACHIEVEMENT,
 		CLUE,
 		RAID_TIME,
 		PET

@@ -71,9 +71,42 @@ final class ObservationQueue
 		return queue.size();
 	}
 
+	synchronized List<Map<String, Object>> snapshot()
+	{
+		List<Map<String, Object>> copy = new ArrayList<>();
+		for (Map<String, Object> observation : queue)
+		{
+			copy.add(new LinkedHashMap<>(observation));
+		}
+		return copy;
+	}
+
+	synchronized void restore(List<Map<String, Object>> observations)
+	{
+		queue.clear();
+		if (observations == null)
+		{
+			return;
+		}
+		for (Map<String, Object> observation : observations)
+		{
+			if (observation == null || !observation.containsKey("clientEventId")
+				|| !observation.containsKey("type") || !observation.containsKey("observedAt"))
+			{
+				continue;
+			}
+			add(observation);
+		}
+	}
+
 	synchronized void clear()
 	{
 		queue.clear();
+	}
+
+	static boolean sameOwner(String left, String right)
+	{
+		return CapturePlan.normalize(left).equals(CapturePlan.normalize(right));
 	}
 
 	static final class Batch

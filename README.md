@@ -6,9 +6,9 @@ The opt-in RuneLite companion for [Terry's Drafting](https://draftsmith-teams.co
 
 - Pairs one logged-in character to one event with a ten-minute, one-use code.
 - Shows the event, team standing, score, and open tasks in a sidebar and compact overlay.
-- Sends only observations that match the live event's capture plan: relevant XP/levels, relevant NPC loot, boss kills, collection-log notices, combat achievements, clues, and supported raid completion messages.
+- Sends only observations that match the live event's capture plan: relevant XP/levels, relevant NPC loot, boss kills, collection-log notices, clues, and supported raid completion messages.
 - Lets a player submit a non-screenshot tile for organizer review from RuneLite.
-- Retries a bounded in-memory queue without duplicating accepted progress.
+- Retries a bounded local queue across restarts without duplicating accepted progress, and clears it if you switch characters.
 
 ## Privacy and consent
 

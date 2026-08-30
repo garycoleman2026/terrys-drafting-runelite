@@ -10,6 +10,8 @@ public interface TerrysDraftingConfig extends Config
 {
 	String GROUP = "terrysdrafting";
 	String CREDENTIAL_KEY = "deviceCredential";
+	String PENDING_QUEUE_KEY = "pendingObservationQueue";
+	String PENDING_RSN_KEY = "pendingObservationRsn";
 
 	@ConfigItem(
 		keyName = "enableSharing",
@@ -51,6 +53,28 @@ public interface TerrysDraftingConfig extends Config
 		secret = true
 	)
 	default String deviceCredential()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = PENDING_QUEUE_KEY,
+		name = "Pending observation queue",
+		description = "Locally retained observations waiting to retry",
+		hidden = true
+	)
+	default String pendingObservationQueue()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = PENDING_RSN_KEY,
+		name = "Pending queue character",
+		description = "Character that owns the local retry queue",
+		hidden = true
+	)
+	default String pendingObservationRsn()
 	{
 		return "";
 	}

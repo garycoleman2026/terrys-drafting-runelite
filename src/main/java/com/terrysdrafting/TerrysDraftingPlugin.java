@@ -1,6 +1,8 @@
 package com.terrysdrafting;
 
 import com.google.inject.Provides;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -11,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.lang.reflect.Type;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -43,7 +46,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class TerrysDraftingPlugin extends Plugin
 {
-	static final String VERSION = "0.1.0";
+	static final String VERSION = "0.2.0";
 	private static final long BATCH_INTERVAL_MILLIS = 10_000L;
 	private static final long DEFAULT_POLL_INTERVAL_MILLIS = 5_000L;
 
@@ -61,6 +64,9 @@ public class TerrysDraftingPlugin extends Plugin
 
 	@Inject
 	private ConfigManager configManager;
+
+	@Inject
+	private Gson gson;
 
 	@Inject
 	private TerrysDraftingConfig config;
@@ -81,6 +87,8 @@ public class TerrysDraftingPlugin extends Plugin
 	private boolean pollInFlight;
 	private boolean batchInFlight;
 	private boolean started;
+	private String queueOwnerRsn = "";
+	private static final Type OBSERVATION_LIST_TYPE = new TypeToken<List<Map<String, Object>>>() { }.getType();
 
 	@Override
 	protected void startUp()
@@ -117,7 +125,7 @@ public class TerrysDraftingPlugin extends Plugin
 			overlayManager.remove(overlay);
 		}
 		state.setListener(null);
-		observationQueue.clear();
+		persistObservations();
 		experience.clear();
 		levels.clear();
 		log.debug("Terry's Drafting stopped");
@@ -257,9 +265,6 @@ public class TerrysDraftingPlugin extends Plugin
 			case COLLECTION_LOG:
 				queueSimpleIfMatched(plan, "collection_log", "collection_log", parsed.target, null, "", 1, observedAt);
 				break;
-			case COMBAT_ACHIEVEMENT:
-				queueSimpleIfMatched(plan, "combat_achievement", "combat_achievement", parsed.target, null, "", 1, observedAt);
-				break;
 			case CLUE:
 				queueSimpleIfMatched(plan, "clue_complete", "clue_complete", parsed.target, null, parsed.target, 1, observedAt);
 				break;
@@ -281,9 +286,14 @@ public class TerrysDraftingPlugin extends Plugin
 		{
 			return;
 		}
+		if (!"enableSharing".equals(event.getKey()))
+		{
+			return;
+		}
 		if (!config.enableSharing())
 		{
 			observationQueue.clear();
+			persistObservations();
 			state.setQueuedCount(0);
 			state.setStatus(hasCredential() ? "Paired — sharing paused" : "Not paired");
 		}
@@ -435,7 +445,14 @@ public class TerrysDraftingPlugin extends Plugin
 		{
 			return;
 		}
-		state.setCurrentRsn(local.getName());
+		String rsn = local.getName();
+		if (!queueOwnerRsn.isEmpty() && !sameRsn(queueOwnerRsn, rsn))
+		{
+			observationQueue.clear();
+		}
+		queueOwnerRsn = rsn;
+		restoreObservations(rsn);
+		state.setCurrentRsn(rsn);
 		experience.clear();
 		levels.clear();
 		for (Skill skill : Skill.values())
@@ -533,6 +550,7 @@ public class TerrysDraftingPlugin extends Plugin
 	private void queue(Map<String, Object> observation)
 	{
 		observationQueue.add(observation);
+		persistObservations();
 		state.setQueuedCount(observationQueue.size());
 		if (observationQueue.size() >= 25 && !batchInFlight)
 		{
@@ -567,6 +585,7 @@ public class TerrysDraftingPlugin extends Plugin
 				return;
 			}
 			observationQueue.acknowledge(batch);
+			persistObservations();
 			state.setQueuedCount(observationQueue.size());
 			state.setStatus(observationQueue.size() == 0 ? "Connected — synced" : "Connected — syncing");
 			etag = "";
@@ -578,9 +597,49 @@ public class TerrysDraftingPlugin extends Plugin
 	{
 		configManager.unsetConfiguration(TerrysDraftingConfig.GROUP, TerrysDraftingConfig.CREDENTIAL_KEY);
 		observationQueue.clear();
+		persistObservations();
 		etag = "";
 		state.clear();
 		state.setStatus(status);
+	}
+
+	private void restoreObservations(String rsn)
+	{
+		String storedRsn = config.pendingObservationRsn();
+		if (!storedRsn.isEmpty() && !sameRsn(storedRsn, rsn))
+		{
+			observationQueue.clear();
+			persistObservations();
+			return;
+		}
+		if (observationQueue.size() > 0 || config.pendingObservationQueue().trim().isEmpty())
+		{
+			state.setQueuedCount(observationQueue.size());
+			return;
+		}
+		try
+		{
+			List<Map<String, Object>> pending = gson.fromJson(config.pendingObservationQueue(), OBSERVATION_LIST_TYPE);
+			observationQueue.restore(pending);
+			state.setQueuedCount(observationQueue.size());
+		}
+		catch (RuntimeException error)
+		{
+			log.debug("Could not restore Terry's local observation queue", error);
+			observationQueue.clear();
+			persistObservations();
+		}
+	}
+
+	private void persistObservations()
+	{
+		if (configManager == null)
+		{
+			return;
+		}
+		configManager.setConfiguration(TerrysDraftingConfig.GROUP, TerrysDraftingConfig.PENDING_QUEUE_KEY,
+			gson.toJson(observationQueue.snapshot()));
+		configManager.setConfiguration(TerrysDraftingConfig.GROUP, TerrysDraftingConfig.PENDING_RSN_KEY, queueOwnerRsn);
 	}
 
 	private String correlation(String kind, String target, int value, long observedAt)
@@ -595,7 +654,7 @@ public class TerrysDraftingPlugin extends Plugin
 
 	private static boolean sameRsn(String left, String right)
 	{
-		return CapturePlan.normalize(left).equals(CapturePlan.normalize(right));
+		return ObservationQueue.sameOwner(left, right);
 	}
 
 	private static BufferedImage createNavigationIcon()

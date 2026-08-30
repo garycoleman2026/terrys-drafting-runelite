@@ -32,5 +32,6 @@ public class GameMessageParserTest
 	public void ignoresOrdinaryChat()
 	{
 		assertNull(GameMessageParser.parse("Hello clan, good luck at bingo!"));
+		assertNull(GameMessageParser.parse("Combat task completed: Perfect Theatre"));
 	}
 }
