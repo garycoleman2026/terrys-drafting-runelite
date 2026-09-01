@@ -36,11 +36,14 @@ final class TerrysDraftingPanel extends PluginPanel
 	private final JLabel teamLabel = new JLabel();
 	private final JLabel scoreLabel = new JLabel();
 	private final JLabel queueLabel = new JLabel();
+	private final JLabel lastCheckLabel = new JLabel();
 	private final JTextArea statusArea = textArea();
+	private final JTextArea lastSignalArea = textArea();
 	private final JTextField codeField = new JTextField();
 	private final JCheckBox disclosure = new JCheckBox("I accept the data disclosure");
 	private final JButton pairButton = new JButton("Pair character");
 	private final JButton refreshButton = new JButton("Refresh");
+	private final JButton testButton = new JButton("Test connection");
 	private final JButton openBoardButton = new JButton("Open public board");
 	private final JComboBox<ApiModels.BoardTask> taskBox = new JComboBox<>();
 	private final JTextArea noteArea = textArea();
@@ -64,7 +67,7 @@ final class TerrysDraftingPanel extends PluginPanel
 		add(label("OSRS clan bingo companion", ColorScheme.LIGHT_GRAY_COLOR));
 		add(Box.createVerticalStrut(10));
 
-		add(card("Connection", sharingLabel, characterLabel, statusArea, queueLabel));
+		add(card("Connection", sharingLabel, characterLabel, statusArea, queueLabel, lastCheckLabel, lastSignalArea));
 		add(Box.createVerticalStrut(8));
 
 		codeField.setToolTipText("XXXX-XXXX-XXXX");
@@ -93,7 +96,9 @@ final class TerrysDraftingPanel extends PluginPanel
 		JPanel eventActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
 		eventActions.setOpaque(false);
 		refreshButton.addActionListener(event -> plugin.refreshOverlay());
+		testButton.addActionListener(event -> plugin.testConnection());
 		openBoardButton.addActionListener(event -> openBoard());
+		eventActions.add(testButton);
 		eventActions.add(refreshButton);
 		eventActions.add(openBoardButton);
 		eventCard.add(eventActions);
@@ -139,12 +144,16 @@ final class TerrysDraftingPanel extends PluginPanel
 		statusArea.setText(status);
 		statusArea.setForeground(state.getError().isEmpty() ? ColorScheme.LIGHT_GRAY_COLOR : new Color(255, 145, 120));
 		queueLabel.setText("Retry queue: " + state.getQueuedCount());
+		lastCheckLabel.setText(state.getLastServerCheck());
+		lastSignalArea.setText("Latest: " + state.getLastSignal());
+		lastSignalArea.setForeground(signalColor(state.getLastSignal()));
 		boolean paired = plugin.hasCredential();
 		pairButton.setEnabled(config.enableSharing() && !paired);
 		codeField.setEnabled(!paired);
 		disclosure.setEnabled(!paired);
 		disconnectButton.setEnabled(paired);
 		refreshButton.setEnabled(paired && config.enableSharing());
+		testButton.setEnabled(paired && config.enableSharing() && !state.getCurrentRsn().isEmpty());
 		if (data == null || data.event == null || data.team == null)
 		{
 			eventLabel.setText("Event: —");
@@ -246,5 +255,12 @@ final class TerrysDraftingPanel extends PluginPanel
 	private static String safe(String value)
 	{
 		return value == null || value.trim().isEmpty() ? "—" : value;
+	}
+
+	private static Color signalColor(String value)
+	{
+		String normalized = value == null ? "" : value.toLowerCase();
+		return normalized.contains("ignored") || normalized.contains("rejected") || normalized.contains("failed")
+			? new Color(255, 175, 105) : ColorScheme.LIGHT_GRAY_COLOR;
 	}
 }

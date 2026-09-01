@@ -46,7 +46,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class TerrysDraftingPlugin extends Plugin
 {
-	static final String VERSION = "0.2.0";
+	static final String VERSION = "0.3.0";
 	private static final long BATCH_INTERVAL_MILLIS = 10_000L;
 	private static final long DEFAULT_POLL_INTERVAL_MILLIS = 5_000L;
 
@@ -185,21 +185,33 @@ public class TerrysDraftingPlugin extends Plugin
 	@Subscribe
 	public void onStatChanged(StatChanged event)
 	{
-		if (!canCapture() || event.getSkill() == Skill.OVERALL)
+		if (event.getSkill() == Skill.OVERALL)
 		{
 			return;
 		}
 		Skill skill = event.getSkill();
 		Integer previousXp = experience.put(skill, event.getXp());
 		Integer previousLevel = levels.put(skill, event.getLevel());
+		int xpGain = previousXp == null ? 0 : Math.max(0, event.getXp() - previousXp);
+		if (!canCapture())
+		{
+			if (xpGain > 0 && config.enableSharing() && hasCredential())
+			{
+				state.setLastSignal("Not sent: the paired bingo is not live on this character");
+			}
+			return;
+		}
 		List<ApiModels.CaptureRule> plan = state.getCapturePlan();
-		if (previousXp != null && event.getXp() > previousXp
-			&& CapturePlan.matches(plan, "xp_gain", "", null, skill.getName()))
+		if (xpGain > 0 && CapturePlan.matches(plan, "xp_gain", "", null, skill.getName()))
 		{
 			Map<String, Object> observation = observationQueue.create("xp_delta", System.currentTimeMillis());
 			observation.put("metric", skill.getName());
-			observation.put("value", event.getXp() - previousXp);
+			observation.put("value", xpGain);
 			queue(observation);
+		}
+		else if (xpGain > 0)
+		{
+			state.setLastSignal("Ignored " + xpGain + " " + skill.getName() + " XP: no matching open tile");
 		}
 		if (previousLevel != null && event.getLevel() > previousLevel
 			&& CapturePlan.matches(plan, "level_reached", "", null, skill.getName()))
@@ -367,6 +379,7 @@ public class TerrysDraftingPlugin extends Plugin
 				state.setError(error);
 				return;
 			}
+			state.setLastServerCheck("Board checked just now");
 			if (value != null)
 			{
 				etag = value.etag == null ? "" : value.etag;
@@ -379,6 +392,50 @@ public class TerrysDraftingPlugin extends Plugin
 					state.setStatus("Connected");
 				}
 			}
+		});
+	}
+
+	void testConnection()
+	{
+		if (!config.enableSharing())
+		{
+			state.setError("Enable Share bingo observations before testing the connection.");
+			return;
+		}
+		if (!hasCredential())
+		{
+			state.setError("Pair this character before testing the connection.");
+			return;
+		}
+		String rsn = state.getCurrentRsn();
+		if (rsn.isEmpty())
+		{
+			state.setError("Log into the paired character before testing the connection.");
+			return;
+		}
+		state.setStatus("Testing connection…");
+		apiClient.testConnection(config.deviceCredential(), rsn, (value, error, unauthorized) ->
+		{
+			if (!started)
+			{
+				return;
+			}
+			if (unauthorized)
+			{
+				clearCredential("This device was disconnected. Pair it again to continue.");
+				return;
+			}
+			if (error != null || value == null)
+			{
+				state.setError(error == null ? "The connection test returned no result." : error);
+				return;
+			}
+			state.setLastServerCheck("Connection test passed just now");
+			state.setLastSignal(value.message == null ? "Connection test passed" : value.message);
+			state.setStatus("success".equalsIgnoreCase(value.status) ? "Connected — ready" : "Connected — waiting for live event");
+			etag = "";
+			lastPollAt = 0;
+			refreshOverlay();
 		});
 	}
 
@@ -552,6 +609,7 @@ public class TerrysDraftingPlugin extends Plugin
 		observationQueue.add(observation);
 		persistObservations();
 		state.setQueuedCount(observationQueue.size());
+		state.setLastSignal("Queued " + observationDescription(observation));
 		if (observationQueue.size() >= 25 && !batchInFlight)
 		{
 			flushObservations();
@@ -579,14 +637,25 @@ public class TerrysDraftingPlugin extends Plugin
 				clearCredential("This device was disconnected. Pair it again to continue.");
 				return;
 			}
-			if (error != null)
+			if (error != null || value == null)
 			{
-				state.setError(error + " Queued observations will retry.");
+				state.setError((error == null ? "The signal response was incomplete." : error) + " Queued observations will retry.");
 				return;
 			}
 			observationQueue.acknowledge(batch);
 			persistObservations();
 			state.setQueuedCount(observationQueue.size());
+			String latest = value.message == null ? "RuneLite signals received" : value.message;
+			for (ApiModels.ObservationResult result : value.observationResults())
+			{
+				if (("ignored".equals(result.status) || "rejected".equals(result.status))
+					&& result.message != null && !result.message.trim().isEmpty())
+				{
+					latest = result.message;
+					break;
+				}
+			}
+			state.setLastSignal(latest);
 			state.setStatus(observationQueue.size() == 0 ? "Connected — synced" : "Connected — syncing");
 			etag = "";
 			lastPollAt = 0;
@@ -650,6 +719,27 @@ public class TerrysDraftingPlugin extends Plugin
 			normalized = normalized.substring(0, 24);
 		}
 		return kind + "." + normalized + "." + value + "." + (observedAt / 10_000L) + "." + config.partySize();
+	}
+
+	private static String observationDescription(Map<String, Object> observation)
+	{
+		String type = String.valueOf(observation.get("type"));
+		String target = observation.get("target") == null ? "" : String.valueOf(observation.get("target"));
+		String metric = observation.get("metric") == null ? "" : String.valueOf(observation.get("metric"));
+		String value = observation.get("value") == null ? "" : String.valueOf(observation.get("value"));
+		if ("xp_delta".equals(type))
+		{
+			return value + " " + metric + " XP";
+		}
+		if ("level_reached".equals(type))
+		{
+			return metric + " level " + value;
+		}
+		if (!target.isEmpty())
+		{
+			return target;
+		}
+		return type.replace('_', ' ');
 	}
 
 	private static boolean sameRsn(String left, String right)

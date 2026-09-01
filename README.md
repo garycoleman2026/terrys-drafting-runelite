@@ -9,6 +9,7 @@ The opt-in RuneLite companion for [Terry's Drafting](https://draftsmith-teams.co
 - Sends only observations that match the live event's capture plan: relevant XP/levels, relevant NPC loot, boss kills, collection-log notices, clues, and supported raid completion messages.
 - Lets a player submit a non-screenshot tile for organizer review from RuneLite.
 - Retries a bounded local queue across restarts without duplicating accepted progress, and clears it if you switch characters.
+- Includes a connection test and explains whether each signal scored, needs review, counted toward progress, matched no tile, or was rejected.
 
 ## Privacy and consent
 
@@ -22,6 +23,8 @@ Read the full [data disclosure](https://draftsmith-teams.companyscreeninginfo.ch
 2. In RuneLite, enable the plugin's **Share bingo observations** setting after reviewing the warning.
 3. Open the Terry's Drafting sidebar, accept the disclosure, paste the code, and pair while logged into that exact character.
 4. Use **Disconnect this device** at any time to revoke the credential.
+
+Press **Test connection** after pairing. The result appears in both the RuneLite sidebar and the organizer's live connection feed.
 
 ## Local development
 

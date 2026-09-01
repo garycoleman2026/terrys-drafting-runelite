@@ -115,6 +115,40 @@ final class ApiModels
 		String submittedAt;
 	}
 
+	static final class BatchResponse
+	{
+		int eventCount;
+		int matchedCount;
+		int ignoredCount;
+		int rejectedCount;
+		int duplicateCount;
+		int scoredCount;
+		int reviewCount;
+		String message;
+		List<ObservationResult> results = new ArrayList<>();
+
+		List<ObservationResult> observationResults()
+		{
+			return results == null ? Collections.emptyList() : results;
+		}
+	}
+
+	static final class ObservationResult
+	{
+		String status;
+		String message;
+		String label;
+	}
+
+	static final class DiagnosticResponse
+	{
+		String status;
+		String message;
+		String eventStatus;
+		int captureRuleCount;
+		String serverTime;
+	}
+
 	static final class ErrorResponse
 	{
 		String error;

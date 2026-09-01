@@ -11,6 +11,8 @@ final class TerrysDraftingState
 	private String currentRsn = "";
 	private String status = "Not paired";
 	private String error = "";
+	private String lastServerCheck = "Board check: never";
+	private String lastSignal = "No gameplay signals yet";
 	private int queuedCount;
 	private Runnable listener;
 
@@ -42,6 +44,16 @@ final class TerrysDraftingState
 	synchronized int getQueuedCount()
 	{
 		return queuedCount;
+	}
+
+	synchronized String getLastServerCheck()
+	{
+		return lastServerCheck;
+	}
+
+	synchronized String getLastSignal()
+	{
+		return lastSignal;
 	}
 
 	synchronized void setListener(Runnable listener)
@@ -98,6 +110,24 @@ final class TerrysDraftingState
 		notifyListener();
 	}
 
+	void setLastServerCheck(String value)
+	{
+		synchronized (this)
+		{
+			lastServerCheck = value == null || value.trim().isEmpty() ? "Board check: never" : value;
+		}
+		notifyListener();
+	}
+
+	void setLastSignal(String value)
+	{
+		synchronized (this)
+		{
+			lastSignal = value == null || value.trim().isEmpty() ? "No gameplay signals yet" : value;
+		}
+		notifyListener();
+	}
+
 	void clear()
 	{
 		synchronized (this)
@@ -106,6 +136,8 @@ final class TerrysDraftingState
 			status = "Not paired";
 			error = "";
 			queuedCount = 0;
+			lastServerCheck = "Board check: never";
+			lastSignal = "No gameplay signals yet";
 		}
 		notifyListener();
 	}

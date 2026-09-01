@@ -85,12 +85,19 @@ final class TerrysDraftingApiClient
 	}
 
 	void submitBatch(
-		String credential, String rsn, ObservationQueue.Batch batch, Result<Void> callback)
+		String credential, String rsn, ObservationQueue.Batch batch, Result<ApiModels.BatchResponse> callback)
 	{
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("batchKey", batch.batchKey);
 		body.put("observations", batch.observations);
-		execute(jsonRequest("/api/runelite/events", credential, rsn, body), Void.class, callback);
+		execute(jsonRequest("/api/runelite/events", credential, rsn, body), ApiModels.BatchResponse.class, callback);
+	}
+
+	void testConnection(String credential, String rsn, Result<ApiModels.DiagnosticResponse> callback)
+	{
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("action", "test");
+		execute(jsonRequest("/api/runelite/diagnostics", credential, rsn, body), ApiModels.DiagnosticResponse.class, callback);
 	}
 
 	void submitClaim(String credential, String rsn, String taskId, String note, Result<ApiModels.ClaimResponse> callback)
